@@ -24,14 +24,14 @@ python Projeto_StatsTracker.py
 ```
 
 ---
-## NOTA TÉCNICA
+## TECHNICAL NOTE
 In case of any compatibility errors, the `requirements.txt` file is included. To reinstall dependencies, you can use:
 ```bash
 pip install -r requirements.txt
 ``` 
 
 --- 
-## ⚠️ Nota sobre a visualização (Cores do Rich)
+## ⚠️ NOTE ON VISUALIZATION (RICH COLORS)
 This project uses the Rich library for colorful interfaces. If running the code inside **PyCharm**, please enable the option: `Emulate terminal in output console` in the Run Configuration settings.
 
 If running via **Windows Terminal/CMD**, colors work automatically without extra configuration.

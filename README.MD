@@ -2,37 +2,45 @@
 ALUNO: MANUEL CORREIA
 Nº 2403849
 ---
-This project is a Command Line Interface (CLI) application developed in Python for sports management and statistical analysis of the Parede FC Roller Hockey team.
+Este projeto é uma aplicação de linha de comandos (CLI) desenvolvida em Python para a gestão desportiva e análise estatística da equipa de Hóquei em Patins do Parede FC
 
-The application allows the technical team to register game events in real-time (goals, assists, saves, cards, etc.) and consult detailed statistics through a modern visual interface. The system ensures data persistence between sessions and implements advanced Object-Oriented Programming concepts.
-
----
-## MAIN FEATURES
-- **Squad Management:** Player listing distinguishing between Goalkeepers and Field Players.
-- **Live Match Tracking:** Intuitive logging of match events (Goals, assists, set pieces, discipline, etc.).
-- **Visual Interface:** Utilizes the `Rich` library to present formatted statistical tables, colorful panels, and interactive menus.
-- **Automatic Statistics:** Calculation of totals (Wins/Losses, Goals Scored/Conceded) and individual metrics.
-- **Data Persistence:** Automatic saving of the entire history into a JSON file.
-- **Technical Architecture:** Implementation of Multiple Inheritance and Mixins for code modularity.
+A aplicação permite que a equipa técnica registe eventos do jogo em tempo real (golos, assistências, defesas, cartões, etc) e consultar estatísticas detalhadas através de uma interface visual moderna. O sistema garante a persistência de dados entre sessões e implementa conceitos avançados de Programação Orientada a Objetos. 
 
 ---
-## HOW TO RUN
-1. Ensure the `.venv` folder is present.
-2. Run the main file:
+## PRINCIPAIS FUNCIONALIDADES
+- Gestão de Plantel: Listagem de jogadores com distinção entre Guarda-Redes e Jogadores de Campo.
+- Live Match Tracking: Registo Intuitivo de eventos durante o jogo (Golos, assistências, bolas paradas, disciplina, etc).
+- Interface Visual: Utilização da biblioteca Rich para apresentar tabelas de consulta estatística formatadas, painéis coloridos e menus interativos.
+- Estatísticas Automáticas: Cálculo de totais (Vitórias/Derrotas, Golos Marcados/Sofridos) e métricas individuais.
+- Persistência de dados: Salvaguarda automática de todo o histórico em ficheiro JSON.
+- Arquitetura Técnica: Implementação de Herança Múltipla e Mixins para modularidade do código.
+
+---
+## COMO EXECUTAR
+1. Certifique-se de que a pasta '.venv' está presente.
+2. Execute o ficheiro principal: 
 ```bash
 python Projeto_StatsTracker.py
 ```
 
 ---
-## TECHNICAL NOTE
-In case of any compatibility errors, the `requirements.txt` file is included. To reinstall dependencies, you can use:
+## NOTA TÉCNICA
+O projeto inclui a pasta '.venv' conforme as instruções do forúm de dúvidas da cadeira.
+Caso ocorra algum erro de compatibilidade, inclui também o ficheiro 'requirements.txt'.
+Para reinstalar as dependências, pode usar: 
 ```bash
 pip install -r requirements.txt
 ``` 
 
 --- 
-## ⚠️ NOTE ON VISUALIZATION (RICH COLORS)
-This project uses the Rich library for colorful interfaces. If running the code inside **PyCharm**, please enable the option: `Emulate terminal in output console` in the Run Configuration settings.
+## ⚠️ Nota sobre a visualização (Cores do Rich)
+Este projeto utiliza a biblioteca `Rich` para interfaces coloridas
+Caso execute o código dentro do **PyCharm**, por favor ative a opção:
+`Emulate terminal in output console` nas configurações de execução (Run Configuration).
 
-If running via **Windows Terminal/CMD**, colors work automatically without extra configuration.
+Se executar pelo **Terminal do Windows/CMD**, as cores funcionam automaticamente sem configuração extra.
 
+---
+## ⚠️ Nota sobre a Persistência de Dados
+O sistema de persistência (JSON) foi atualizado recentemente para corrigir a serialização de objetos (mudança de chaves de variáveis).
+O ficheiro de dados atual (`dados_equipa.json`) mantém o histórico antigo, mas algumas estatísticas acumuladas (como Defesas e Golos Sofridos) só começarão a contar corretamente a partir dos novos jogos registados nesta versão final.

@@ -1,7 +1,5 @@
-import time
 from typing import List
 from contratos import RegistoEmJogo, EstatisticaChave, ExportavelJSON
-from mixins import JSONMixin, AuditoriaMixin
 import json
 import os
 # import da biblioteca rich
@@ -9,7 +7,7 @@ from rich.console import Console
 from rich.table import Table
 from rich import box
 from rich.panel import Panel
-from rich.prompt import Prompt
+from rich.prompt import Prompt, IntPrompt
 from rich.align import Align
 
 ARQUIVO_DADOS = "dados_equipa.json"
@@ -67,8 +65,8 @@ class Equipa:
             "golos_sofridos": self.golos_sofridos,
             "tipo_classe": "Equipa",  # Opcional, mas útil
             # AQUI ESTÁ O TRUQUE: Converter as listas de objetos para listas de dicionários
-            "jogadores": [j.to_dict() for j in self.jogadores],
-            "jogos": [j.to_dict() for j in self.jogos]
+            "jogadores": [j.to_json_dict() for j in self.jogadores],
+            "jogos": [j.to_json_dict() for j in self.jogos]
         }
 
 class Jogador:     # SuperClasse base para herança de JogadorDeCampo e de GuardaRedes
@@ -81,31 +79,34 @@ class Jogador:     # SuperClasse base para herança de JogadorDeCampo e de Guard
         self.advertencias = advertencias
         self.cinco_inicial = cinco_inicial
 
-class JogadorDeCampo(Jogador, AuditoriaMixin, JSONMixin, ExportavelJSON, RegistoEmJogo, EstatisticaChave):       # herda de jogador e implementa os protocolos (ABCs)
-    def __init__(self, nome, numero, posicao, golos=0, assistencias=0, azuis=0, advertencias=0, cinco_inicial=0, **kwargs):
+class JogadorDeCampo(Jogador, ExportavelJSON, RegistoEmJogo, EstatisticaChave):       # herda de jogador e implementa os protocolos (ABCs)
+    def __init__(self, nome, numero, posicao, golos=0, assistencias=0, azuis=0, advertencias=0, cinco_inicial=0, plus_minus=0, **kwargs):
         super().__init__(nome=nome, numero=numero, posicao=posicao, azuis=azuis, advertencias=advertencias, cinco_inicial=cinco_inicial, **kwargs)
         self.golos = golos
         self.assistencias = assistencias
         self.azuis = azuis
         self.advertencias = advertencias
         self.cinco_inicial = cinco_inicial
+        self.plus_minus = plus_minus
 
     # Implementação do registo em jogo (OCP/LSP)
     # Este método substitui os antigos def registar_golo() e def fazer_assistencia()
     def processar_evento(self, tipo_evento, **kwargs):
+        lista_campo = kwargs.get("jogadores_em_campo")
+
         if tipo_evento == "golo marcado":
             self.golos += 1
-            self.registar_log(f"Marcou um golo.")
+
+            if lista_campo:
+                for j in lista_campo:
+                    j.plus_minus += 1
         elif tipo_evento == "assistencia":
             self.assistencias += 1
-            self.registar_log(f"Marcou um assistencia.")
         # Se futuramente quiser adicionar um novo evento possível (ex: cartão vermelho), a lógica vai aqui.
         elif tipo_evento == "azul":
             self.azuis += 1
-            self.registar_log(f"Levou cartão azul.")
         elif tipo_evento == "advertencia":
             self.advertencias += 1
-            self.registar_log(f"Recebeu uma advertencia.")
         elif tipo_evento == "5 inicial":
             self.cinco_inicial += 1
 
@@ -132,7 +133,7 @@ class JogadorDeCampo(Jogador, AuditoriaMixin, JSONMixin, ExportavelJSON, Registo
                 f"Advertencias: {self.advertencias}"
                 f"5 inicial: {self.cinco_inicial}")
 
-    def to_dict(self):
+    def to_json_dict(self):
         return {
             "tipo_classe": "JogadorDeCampo",
             "nome": self.nome,
@@ -143,12 +144,11 @@ class JogadorDeCampo(Jogador, AuditoriaMixin, JSONMixin, ExportavelJSON, Registo
             "azuis": self.azuis,
             "advertencias": self.advertencias,
             "5 inicial": self.cinco_inicial,
-            # Se quiseres guardar os logs também:
-            "historico_logs": getattr(self, 'historico_logs', [])
+            "plus_minus": self.plus_minus
         }
 
-class GuardaRedes (Jogador, AuditoriaMixin, JSONMixin, ExportavelJSON, RegistoEmJogo, EstatisticaChave):       # herda de jogador e implementa os protocolos (ABCs)
-    def __init__(self, nome, numero, defesas=0, golossofridos=0, bolasparadasdefendidas=0, bolasparadassofridas=0, azuis=0, advertencias=0, cinco_inicial=0, **kwargs):
+class GuardaRedes (Jogador, ExportavelJSON, RegistoEmJogo, EstatisticaChave):       # herda de jogador e implementa os protocolos (ABCs)
+    def __init__(self, nome, numero, defesas=0, golossofridos=0, bolasparadasdefendidas=0, bolasparadassofridas=0, azuis=0, advertencias=0, cinco_inicial=0, plus_minus=0, **kwargs):
         super().__init__(nome=nome, numero=numero, posicao="Guarda-Redes", azuis=azuis, advertencias=advertencias, cinco_inicial=cinco_inicial, **kwargs)
         self.defesas = defesas
         self.golossofridos = golossofridos
@@ -157,30 +157,35 @@ class GuardaRedes (Jogador, AuditoriaMixin, JSONMixin, ExportavelJSON, RegistoEm
         self.azuis = azuis
         self.advertencias = advertencias
         self.cinco_inicial = cinco_inicial
+        self.plus_minus = plus_minus
 
     # Implementação do Registo em Jogo (OCP/LSP)
     # Este método substitiu os antigos def registar_defesa, def registar_golosofrido, def registar_bolaparadadefendida, def registar_bolaparadasofrida
     def processar_evento(self, tipo_evento, **kwargs):
+        lista_campo = kwargs.get("jogadores_em_campo")
+
         if tipo_evento == "golo sofrido":
             self.golossofridos += 1
-            self.registar_log(f"Sofreu um golo.")
+
+            if lista_campo:
+                for j in lista_campo:
+                    j.plus_minus -= 1
         elif tipo_evento == "defesa":
             self.defesas += 1
-            self.registar_log(f"Defesa.")
         elif tipo_evento == "bola parada defendida":
             self.bolasparadasdefendidas += 1
             self.defesas += 1
-            self.registar_log(f"Bola parada defendida.")
         elif tipo_evento == "bola parada sofrida":
             self.bolasparadassofridas += 1
             self.golossofridos -= 1
-            self.registar_log(f"Bola parada sofrida.")
+
+            if lista_campo:
+                for j in lista_campo:
+                    j.plus_minus -= 1
         elif tipo_evento == "azul":
             self.azuis += 1
-            self.registar_log(f"Levou cartão azul.")
         elif tipo_evento == "advertencia":
             self.advertencias += 1
-            self.registar_log(f"Recebeu uma advertencia.")
         elif tipo_evento == "5 inicial":
             self.cinco_inicial += 1
 
@@ -215,7 +220,7 @@ class GuardaRedes (Jogador, AuditoriaMixin, JSONMixin, ExportavelJSON, RegistoEm
                 f"Advertencias : {self.advertencias}, "
                 f"5 Inicial : {self.cinco_inicial}, ")
 
-    def to_dict(self):
+    def to_json_dict(self):
         return {
             "tipo_classe": "GuardaRedes",
             "nome": self.nome,
@@ -228,8 +233,7 @@ class GuardaRedes (Jogador, AuditoriaMixin, JSONMixin, ExportavelJSON, RegistoEm
             "azuis": self.azuis,
             "advertencias": self.advertencias,
             "5_inicial": self.cinco_inicial,
-            # Se quiseres guardar os logs também:
-            "historico_logs": getattr(self, 'historico_logs', [])
+            "plus_minus": self.plus_minus
         }
 
 class Evento:      # regista um evento associado a um jogador
@@ -272,7 +276,7 @@ class Jogo:
         else:
             self.resultado = "Derrota"
 
-    def to_dict(self):
+    def to_json_dict(self):
         return {
             "adversario": self.adversario,
             "golos_marcados": self.golos_marcados,
@@ -425,6 +429,7 @@ def carregar_dados():
                         azuis=p_dados.get("azuis", 0),
                         advertencias=p_dados.get("advertencias", 0),
                         cinco_inicial=p_dados.get("5 inicial", 0),
+                        plus_minus=p_dados.get("plus_minus", 0),
                     )
                 else: # JogadorDeCampo
                     jogador = JogadorDeCampo(
@@ -435,12 +440,11 @@ def carregar_dados():
                         assistencias=p_dados.get("assistencias", 0),
                         azuis=p_dados.get("azuis", 0),
                         advertencias=p_dados.get("advertencias", 0),
-                        cinco_inicial=p_dados.get("5 inicial", 0),
+                        cinco_inicial=p_dados.get("5_inicial", 0),
+                        plus_minus=p_dados.get("plus_minus", 0),
                     )
-                if jogador:
-                    lista_logs = p_dados.get("historico_logs", [])
-                    jogador.historico_logs = lista_logs
 
+                if jogador:
                     equipa.adicionar_jogador(jogador)
 
             # --- 3. RECUPERAR LISTA DE JOGOS ---
@@ -506,6 +510,7 @@ class InterfaceVisual:
         table_campo.add_column("Titular", justify="center")
         table_campo.add_column("Azuis", justify="center", style="blue")
         table_campo.add_column("Advertencias", justify="center" ,style="yellow")
+        table_campo.add_column("+/-", justify="center", style="bold cyan")
 
         # separar os jogadores e preencher as tabelas
         tem_gr = False
@@ -546,6 +551,7 @@ class InterfaceVisual:
                     cinco,
                     azuis,
                     advertencias,
+                    str(getattr(jogador, "plus_minus", 0))
                 )
 
                 # imprime as tabelas (se houver jogadores desse tipo)
@@ -556,7 +562,7 @@ class InterfaceVisual:
         if tem_campo:
             self.console.print(table_campo)
 
-    def selecionar_jogador(self, equipa, filtro_posicao=None, mensagem="Selecione o jogador"):
+    def selecionar_jogador(self, lista_jogadores, filtro_posicao=None, mensagem="Selecione o jogador"):
 
         table = Table(title=mensagem, box=box.SIMPLE_HEAD)
         table.add_column("ID", style="cyan", justify="right")
@@ -567,7 +573,7 @@ class InterfaceVisual:
         jogadores_validos = []
 
         # preencher a tabela
-        for i, jogador in enumerate(equipa.jogadores, 1):
+        for i, jogador in enumerate(lista_jogadores, 1):
             # se houver filtro (ex: Guarda-Redes), só mostra esses
             if filtro_posicao is None or jogador.posicao == filtro_posicao:
                 table.add_row(str(i), jogador.nome, jogador.posicao)
@@ -586,7 +592,7 @@ class InterfaceVisual:
 
                 if escolha in jogadores_validos:
                     # retorna o objeto jogador correspondente (indice = escolha - 1, pois em pyhon os indices começam em 0)
-                    return equipa.jogadores[escolha - 1]
+                    return lista_jogadores[escolha - 1]
                 else:
                     self.console.print("[red]ID inválido. Escolha um da lista acima.[/red]")
             except ValueError:
@@ -684,26 +690,25 @@ def menu_comecar_jogo(equipa):
     os.system('cls' if os.name == 'nt' else 'clear')      # limpa o ecra
 
     visual.mostrar_lista_jogadores(equipa)
-
     visual.console.print("\n[bold]Definição do 5 inicial[/bold]")
     cincoinicial = Prompt.ask("Digite os IDs dos titulares separados por vírgula (ex: 1, 2, 3, 4, 5)")
 
+    jogadores_em_campo = []
+
     if cincoinicial.strip():
-        try:
-            ids = [int(x.strip()) for x in cincoinicial.split(",")]
-            count = 0
-            for idx in ids:
-                if 1 <= idx <= len(equipa.jogadores):
-                    equipa.jogadores[idx-1].cinco_inicial += 1
-                    count += 1
-            visual.console.print(f"[green]{count} titulares definidos.[/green]")
-            time.sleep(1.5)
-        except ValueError:
-            visual.console.print("[red]Erro nos números.[/red]")
+        ids = [int(x.strip()) for x in cincoinicial.split(",")]
+        for idx in ids:
+            if 1 <= idx <= len(equipa.jogadores):
+                jogador = equipa.jogadores[idx - 1]
+                jogador.processar_evento("5 inicial")
+                jogadores_em_campo.append(jogador)
 
     # loop do jogo
     golos_nos = 0
     golos_adversario = 0
+
+    faltas_nos = 0
+    faltas_adversario = 0
 
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
@@ -713,24 +718,27 @@ def menu_comecar_jogo(equipa):
         visual.console.print(Panel(Align.center(texto_placar), style="blue"))
 
         visual.console.print("1. Golo do Parede FC")
-        visual.console.print("2. Golo Sofrido")
-        visual.console.print("3. Defesa GR")
-        visual.console.print("4. Cartões (azul ou advertÊncias")
+        visual.console.print("2. Golo Sofrido (inclui bola parada)")
+        visual.console.print("3. Defesa GR (remate ou bola parada)")
+        visual.console.print("4. Cartões (azul ou advertências)")
+        visual.console.print("5. Substituição")
+        visual.console.print("6. Fim do underplay")
+        visual.console.print("7. Falta")
         visual.console.print("0. Terminar Jogo")
 
-        op = Prompt.ask("Opção", choices=["0", "1", "2", "3", "4"])
+        op = Prompt.ask("Opção", choices=["0", "1", "2", "3", "4", "5", "6", "7"])
 
         if op == "1":
             # reutilização da classe visual aqui
-            marcador = visual.selecionar_jogador(equipa, mensagem="Quem marcou?")
+            marcador = visual.selecionar_jogador(jogadores_em_campo, mensagem="Quem marcou?")
 
             if marcador:
-                marcador.processar_evento("golo marcado")
+                marcador.processar_evento("golo marcado", jogadores_em_campo=jogadores_em_campo)
                 golos_nos += 1
                 visual.console.print(f"[green]Golo de {marcador.nome}![/green]")
 
                 if Prompt.ask("Houve assistência?", choices=["s", "n"]) == "s":
-                    assistente = visual.selecionar_jogador(equipa, mensagem="Quem assistiu?")
+                    assistente = visual.selecionar_jogador(jogadores_em_campo, mensagem="Quem assistiu?")
                     if assistente:
                         assistente.processar_evento("assistencia")
 
@@ -739,17 +747,17 @@ def menu_comecar_jogo(equipa):
         elif op == "2":
             golos_adversario += 1
             # filtrar só GRs automaticamente
-            gr = visual.selecionar_jogador(equipa, filtro_posicao="Guarda-Redes", mensagem="Quem sofreu?")
+            gr = visual.selecionar_jogador(equipa.jogadores, filtro_posicao="Guarda-Redes", mensagem="Quem sofreu?")
             if gr:
                 if Prompt.ask("Bola parada?", choices=["s", "n"]) == "s":
-                    gr.processar_evento("bola parada sofrida")
+                    gr.processar_evento("bola parada sofrida", jogadores_em_campo=jogadores_em_campo)
                 else:
-                    gr.processar_evento("golo sofrido")
+                    gr.processar_evento("golo sofrido", jogadores_em_campo=jogadores_em_campo)
             input("Enter para continuar...")
 
         elif op == "3":
             # filtra só GRs automaticamente
-            gr = visual.selecionar_jogador(equipa, filtro_posicao="Guarda-Redes", mensagem="Quem defendeu?")
+            gr = visual.selecionar_jogador(equipa.jogadores, filtro_posicao="Guarda-Redes", mensagem="Quem defendeu?")
             if gr:
                 if Prompt.ask("Bola parada?", choices=["s", "n"]) == "s":
                     gr.processar_evento("bola parada defendida")
@@ -758,20 +766,172 @@ def menu_comecar_jogo(equipa):
             input("Enter para continuar...")
 
         elif op == "4":
-            infrator = visual.selecionar_jogador(equipa, mensagem="Quem levou cartão?")
-            if infrator:
+            infrator = visual.selecionar_jogador(equipa.jogadores, mensagem="Quem levou cartão?")
+            if infrator in jogadores_em_campo:
                 tipo = Prompt.ask("Tipo", choices=["azul", "advertencia"])
                 if tipo == "azul":
                     infrator.processar_evento("azul")
+                    jogadores_em_campo.remove(infrator)
+
+                    visual.console.print(f"\n[bold blue] UnderPlay! O {infrator.nome} levou cartão azul.")
+                    visual.console.print(f"[bold red] A equipa está a jogar com {len(jogadores_em_campo)}")
+
                 else:
+                    amarelos_jogo = getattr(infrator, "amarelos_neste_jogo", 0)    # verifica se o jogador ja tem o contador, se não tiver cria-o a 0
+                    infrator.amarelos_neste_jogo = amarelos_jogo + 1
+
                     infrator.processar_evento("advertencia")
+
+                    if infrator.amarelos_neste_jogo >= 2:
+                        visual.console.print(f"[bold blue] Segunda advertência = azul,  jogador tem de sair de campo")
+                        infrator.processar_evento("azul")
+                        jogadores_em_campo.remove(infrator)
+
+                    else:
+                        visual.console.print(f"[yellow] {infrator.nome} levou a primeira advertencia.")
+            else:
+                tipo = Prompt.ask("Tipo", choices=["azul", "advertencia"])
+                if tipo == "azul":
+                    infrator.processar_evento("azul")
+                    visual.console.print("[yellow] O jogador está no banco, precisa tirar um jogador para sair de campo. ")
+                    visual.console.print("Quem vai [red]SAIR[/]?")
+                    for i, j in enumerate(jogadores_em_campo):
+                        print(f"{i + 1}. {j.nome} ({j.numero})")
+
+                    sai_idx = IntPrompt.ask("Escolha o nº da lista acima") - 1
+
+                    if 0 <= sai_idx < len(jogadores_em_campo):
+                        jogador_que_sai = jogadores_em_campo[sai_idx]
+                else:
+                    amarelos_jogo = getattr(infrator, "amarelos_neste_jogo",
+                                            0)  # verifica se o jogador ja tem o contador, se não tiver cria-o a 0
+                    infrator.amarelos_neste_jogo = amarelos_jogo + 1
+
+                    infrator.processar_evento("advertencia")
+
+                    if infrator.amarelos_neste_jogo >= 2:
+                        visual.console.print(f"[bold blue] Segunda advertência = azul,  jogador tem de sair de campo")
+                        infrator.processar_evento("azul")
+
+                        visual.console.print("[yellow] O jogador está no banco, precisa tirar um jogador para sair de campo. ")
+                        visual.console.print("Quem vai [red]SAIR[/]?")
+                        for i, j in enumerate(jogadores_em_campo):
+                            print(f"{i + 1}. {j.nome} ({j.numero})")
+
+                        sai_idx = IntPrompt.ask("Escolha o nº da lista acima") - 1
+
+                        if 0 <= sai_idx < len(jogadores_em_campo):
+                            jogador_que_sai = jogadores_em_campo[sai_idx]
+                    else:
+                        infrator.processar_evento("advertencia")
+                        visual.console.print(f"[yellow] {infrator.nome} levou a primeira advertencia.")
+
             input("Enter para continuar...")
+
+        elif op == "5":
+            visual.console.print("\n[bold yellow]--- SUBSTITUIÇÃO ---[/]")
+
+            # 1. Escolher quem SAI
+            visual.console.print("Quem vai [red]SAIR[/]?")
+            for i, j in enumerate(jogadores_em_campo):
+                print(f"{i + 1}. {j.nome} ({j.numero})")
+
+            sai_idx = IntPrompt.ask("Escolha o nº da lista acima") - 1
+
+            if 0 <= sai_idx < len(jogadores_em_campo):
+                jogador_que_sai = jogadores_em_campo[sai_idx]
+
+                # 2. Escolher quem ENTRA
+                # Mostrar apenas quem NÃO está em campo (Banco)
+                banco = [j for j in equipa.jogadores if j not in jogadores_em_campo]
+
+                visual.console.print(f"\nQuem vai [green]ENTRAR[/] para o lugar de {jogador_que_sai.nome}?")
+                for i, j in enumerate(banco):
+                    print(f"{i + 1}. {j.nome} ({j.numero})")
+
+                entra_idx = IntPrompt.ask("Escolha o nº da lista do banco") - 1
+
+                if 0 <= entra_idx < len(banco):
+                    jogador_que_entra = banco[entra_idx]
+
+                    # TROCA NA LISTA
+                    jogadores_em_campo.remove(jogador_que_sai)
+                    jogadores_em_campo.append(jogador_que_entra)
+
+                    visual.console.print(f"[green]🔄 Substituição feita: Sai {jogador_que_sai.nome}, Entra {jogador_que_entra.nome}[/]")
+                else:
+                    print("Opção de banco inválida.")
+            else:
+                print("Opção de campo inválida.")
+
+        elif op == "6":
+            qtd_em_campo = len(jogadores_em_campo)
+
+            if qtd_em_campo >= 5:
+                visual.console.print("[red]A equipa já está completa (5 jogadores)![/]")
+            else:
+                visual.console.print(f"\n[green]⚡ Fim do underplay [/]")
+
+                # Mostrar quem está no banco
+                banco = [j for j in equipa.jogadores if j not in jogadores_em_campo]
+
+                for i, j in enumerate(banco):
+                    print(f"{i + 1}. {j.nome} ({j.numero})")
+
+                idx = IntPrompt.ask("Quem vai entrar?") - 1
+
+                if 0 <= idx < len(banco):
+                    novo_jogador = banco[idx]
+                    jogadores_em_campo.append(novo_jogador)
+                    visual.console.print(
+                        f"[bold green]✅ {novo_jogador.nome} entrou! A equipa joga agora com {len(jogadores_em_campo)}.[/]")
+                else:
+                    print("Opção inválida.")
+
+        elif op == "7":
+            visual.console.print("Falta de equipa")
+
+            falta_quem = Prompt.ask("Quem fez falta?", choices=["Parede FC", "Adversário"])
+            if falta_quem == "Parede FC":
+                faltas_nos +=1
+                if faltas_nos >= 10 and (faltas_nos % 5 == 0):    # se for maior ou igual a 10 e o resto da divisaõ por 5 for 0 (15,20,25...)
+                    visual.console.print(Panel(f"{faltas_nos} Falta! Livre direto."))
+                    gr_em_campo = None
+                    for j in jogadores_em_campo:
+                        if hasattr(j, "defesas"):
+                            gr_em_campo = j
+                            break
+
+                    if not gr_em_campo:
+                        gr_em_campo = visual.selecionar_jogador(equipa, mensagem="Quem é o guarda-redes a defender?")
+
+                    if gr_em_campo:
+                        visual.console.print(f"[bold]{gr_em_campo.nome} está na baliza para defender a bola parada.[/]")
+                        resultado = Prompt.ask("Golo?", choices=["sim", "não"])
+
+                        if resultado == "não":
+                            gr_em_campo.processar_evento("defesa")
+                            gr_em_campo.processar_evento("bola parada defendida")
+
+                        else: # golo sofrido
+                            gr_em_campo.processar_evento("golo sofrido")
+                            gr_em_campo.processar_evento("bola parada sofrida")
+
+                            golos_adversario += 1
+
+                            visual.console.print(f"[red] Golo sofrido de bola parada.[/]")
+            else:
+                faltas_adversario +=1
+                if faltas_adversario >= 10 and (faltas_adversario % 5 == 0):    # se for maior ou igual a 10 e o resto da divisaõ por 5 for 0 (15,20,25...)
+                    visual.console.print(Panel(f"{faltas_adversario} Falta! Livre direto."))
 
         elif op == "0":
             novo_jogo = Jogo(adversario, golos_nos, golos_adversario)
+
+            novo_jogo.definir_resultado()
+
             equipa.adicionar_jogo(novo_jogo)
-            equipa.golos_marcados += golos_nos
-            equipa.golos_sofridos += golos_adversario
+
             salvar_dados(equipa)
             break
 

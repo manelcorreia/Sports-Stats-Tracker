@@ -2,6 +2,8 @@ from typing import List
 from contratos import RegistoEmJogo, EstatisticaChave, ExportavelJSON
 import json
 import os
+import time
+from datetime import timedelta
 # import da biblioteca rich
 from rich.console import Console
 from rich.table import Table
@@ -678,6 +680,12 @@ def escolher_jogador_menu(equipa, posicao_filtro=None):
         except ValueError:
             print("Por favor, insira um número válido.")
 
+def obter_tempo_atual():
+    # tempo decorrido em segundos
+    decorrido = time.time() - tempo_inicio - tempo_pausado
+    return str(timedelta(seconds=int(decorrido)))[2:]     # retorna MM:SS
+
+
 def menu_comecar_jogo(equipa):
     # instanciar a classe visual
     visual = InterfaceVisual()
@@ -710,11 +718,43 @@ def menu_comecar_jogo(equipa):
     faltas_nos = 0
     faltas_adversario = 0
 
+    parte_atual = 1
+    tempo_inicio = time.time()    # guarda o momento exato em que o jogo começou
+    tempo_pausado = 0
+    tempo_congelado = False       # para saber se o relógio parou
+    momento_azul = None           # para controlar o tempo de exclusão
+
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
 
+        segundos = int(time.time() - tempo_inicio)
+
+        # verificar se chegou aos 25 min (1500 segundos)
+        aviso_status = ""
+
+        if segundos >= 1500:
+            tempo_congelado = True
+
+            if parte_atual == 1:
+                segundos = 1500     # fixa visualmente nos 25 min
+                aviso_status = "[Intervalo - Inicie a 2º Parte]"
+
+            else:
+                segundos = 1500     # fixa visualmente nos 50  min
+                aviso_status = " [Fim de Jogo] "
+
+        else:
+            tempo_congelado = False
+
+        tempo_jogo = str(timedelta(seconds=segundos))
+        if segundos < 3600:
+            tempo_jogo = tempo_jogo[2:]      # remove a hora
+
         # placar do jogo
-        texto_placar = f"[bold red]PAREDE FC[/] {golos_nos} - {golos_adversario} [bold white]{adversario}[/]"
+        texto_placar = (
+            f"[bold red]PAREDE FC[/] {golos_nos} - {golos_adversario} [bold white]{adversario}[/]\n"
+            f"[[bold yellow]{parte_atual}ª PARTE | {tempo_jogo}{aviso_status}[/]"
+        )
         visual.console.print(Panel(Align.center(texto_placar), style="blue"))
 
         visual.console.print("1. Golo do Parede FC")
@@ -724,9 +764,10 @@ def menu_comecar_jogo(equipa):
         visual.console.print("5. Substituição")
         visual.console.print("6. Fim do underplay")
         visual.console.print("7. Falta")
+        visual.console.print("8. Inicio 2ª Parte")
         visual.console.print("0. Terminar Jogo")
 
-        op = Prompt.ask("Opção", choices=["0", "1", "2", "3", "4", "5", "6", "7"])
+        op = Prompt.ask("Opção", choices=["0", "1", "2", "3", "4", "5", "6", "7", "8"])
 
         if op == "1":
             # reutilização da classe visual aqui
@@ -772,8 +813,9 @@ def menu_comecar_jogo(equipa):
                 if tipo == "azul":
                     infrator.processar_evento("azul")
                     jogadores_em_campo.remove(infrator)
+                    momento_azul = time.time()
 
-                    visual.console.print(f"\n[bold blue] UnderPlay! O {infrator.nome} levou cartão azul.")
+                    visual.console.print(f"\n[bold blue] UnderPlay de 2 min iniciado! O {infrator.nome} levou cartão azul.")
                     visual.console.print(f"[bold red] A equipa está a jogar com {len(jogadores_em_campo)}")
 
                 else:
@@ -865,28 +907,43 @@ def menu_comecar_jogo(equipa):
                 print("Opção de campo inválida.")
 
         elif op == "6":
-            qtd_em_campo = len(jogadores_em_campo)
+            # bloco de verificação de tempo
+            permitir_entrada = True
 
-            if qtd_em_campo >= 5:
-                visual.console.print("[red]A equipa já está completa (5 jogadores)![/]")
-            else:
-                visual.console.print(f"\n[green]⚡ Fim do underplay [/]")
+            # verifica se existe cartão azul ativo e se passaram 120 segundos (2 min)
+            if momento_azul is not None:
+                tempo_passado = time.time() - momento_azul
 
-                # Mostrar quem está no banco
-                banco = [j for j in equipa.jogadores if j not in jogadores_em_campo]
-
-                for i, j in enumerate(banco):
-                    print(f"{i + 1}. {j.nome} ({j.numero})")
-
-                idx = IntPrompt.ask("Quem vai entrar?") - 1
-
-                if 0 <= idx < len(banco):
-                    novo_jogador = banco[idx]
-                    jogadores_em_campo.append(novo_jogador)
-                    visual.console.print(
-                        f"[bold green]✅ {novo_jogador.nome} entrou! A equipa joga agora com {len(jogadores_em_campo)}.[/]")
+                if tempo_passado < 120:
+                    faltam = 120 - int(tempo_passado)
+                    visual.console.print(f"\n[bold blue] Ainda faltam {faltam} segundos para o fim do underplay.")
+                    permitir_entrada = False
                 else:
-                    print("Opção inválida.")
+                    momento_azul = None    # tempo ja passou
+
+            if permitir_entrada:
+                qtd_em_campo = len(jogadores_em_campo)
+
+                if qtd_em_campo >= 5:
+                    visual.console.print("[red]A equipa já está completa (5 jogadores)![/]")
+                else:
+                    visual.console.print(f"\n[green]⚡ Fim do underplay [/]")
+
+                    # Mostrar quem está no banco
+                    banco = [j for j in equipa.jogadores if j not in jogadores_em_campo]
+
+                    for i, j in enumerate(banco):
+                        print(f"{i + 1}. {j.nome} ({j.numero})")
+
+                    idx = IntPrompt.ask("Quem vai entrar?") - 1
+
+                    if 0 <= idx < len(banco):
+                        novo_jogador = banco[idx]
+                        jogadores_em_campo.append(novo_jogador)
+                        visual.console.print(
+                            f"[bold green]✅ {novo_jogador.nome} entrou! A equipa joga agora com {len(jogadores_em_campo)}.[/]")
+                    else:
+                        print("Opção inválida.")
 
         elif op == "7":
             visual.console.print("Falta de equipa")
@@ -924,6 +981,23 @@ def menu_comecar_jogo(equipa):
                 faltas_adversario +=1
                 if faltas_adversario >= 10 and (faltas_adversario % 5 == 0):    # se for maior ou igual a 10 e o resto da divisaõ por 5 for 0 (15,20,25...)
                     visual.console.print(Panel(f"{faltas_adversario} Falta! Livre direto."))
+
+        elif op == "8":
+            if parte_atual == 1:
+                if tempo_congelado:
+                    visual.console.print("[green]Intervalo terminado! A começar a 2ª Parte")
+                else:
+                    confirmar = Prompt.ask("O tempo ainda não acabou. Forçar 2ª Parte?", choices=["s", "n"])
+                    if confirmar == "n":
+                        continue    # voltar ao menu sem fazer nada
+                # mudança de parte
+                parte_atual = 2
+                inicio_parte = time.time()      # reset ao relógio
+                momento_azul = None
+
+            else:
+                visual.console.print("[red]Já estás na 2ª Parte![/]")
+                time.sleep(1)
 
         elif op == "0":
             novo_jogo = Jogo(adversario, golos_nos, golos_adversario)

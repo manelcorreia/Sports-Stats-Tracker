@@ -1,46 +1,33 @@
-# PROJETO: PAREDE FC STATS TRACKER
-ALUNO: MANUEL CORREIA
-Nº 2403849
----
-Este projeto é uma aplicação de linha de comandos (CLI) desenvolvida em Python para a gestão desportiva e análise estatística da equipa de Hóquei em Patins do Parede FC
+# 🏑 Parede FC Stats Tracker
 
-A aplicação permite que a equipa técnica registe eventos do jogo em tempo real (golos, assistências, defesas, cartões, etc) e consultar estatísticas detalhadas através de uma interface visual moderna. O sistema garante a persistência de dados entre sessões e implementa conceitos avançados de Programação Orientada a Objetos. 
+This project is an interactive Web Application developed in Python for the sports management and statistical analysis of the Parede FC Roller Hockey team.
+
+The application allows the technical staff to record game events in real-time (goals, assists, saves, cards, fouls, etc.) and consult detailed statistics through a modern visual interface. The system ensures data persistence between sessions and implements advanced Object-Oriented Programming concepts, keeping a clean separation between the backend engine and the frontend interface.
 
 ---
-## PRINCIPAIS FUNCIONALIDADES
-- Gestão de Plantel: Listagem de jogadores com distinção entre Guarda-Redes e Jogadores de Campo.
-- Live Match Tracking: Registo Intuitivo de eventos durante o jogo (Golos, assistências, bolas paradas, disciplina, etc).
-- Interface Visual: Utilização da biblioteca Rich para apresentar tabelas de consulta estatística formatadas, painéis coloridos e menus interativos.
-- Estatísticas Automáticas: Cálculo de totais (Vitórias/Derrotas, Golos Marcados/Sofridos) e métricas individuais.
-- Persistência de dados: Salvaguarda automática de todo o histórico em ficheiro JSON.
-- Arquitetura Técnica: Implementação de Herança Múltipla e Mixins para modularidade do código.
+## ✨ MAIN FEATURES
+- **Squad Management:** Player listing with clear distinction between Goalkeepers and Outfield Players, adapting the UI automatically to each role.
+- **Live Match Tracking:** Intuitive and fast event logging during the game (Goals, Assists, Set Pieces, Cards, Fouls, Loss of Possession, etc.).
+- **Modern Web Interface:** Built with Streamlit, replacing the old CLI, providing a responsive and interactive Match Center.
+- **Automated Statistics & Reports:** Instant calculation of team totals and individual metrics. Includes 1-click export to Excel/CSV for both single-match reports and full-season statistics.
+- **Data Persistence:** Robust backend that automatically saves the entire historical data in a local JSON database (`dados_equipa.json`).
+- **Technical Architecture:** Implementation of modular code, Object-Oriented design, and strict Separation of Concerns (Frontend vs. Backend).
 
 ---
-## COMO EXECUTAR
-1. Certifique-se de que a pasta '.venv' está presente.
-2. Execute o ficheiro principal: 
+## 🚀 HOW TO RUN
+1. Make sure you have Python installed on your machine.
+2. Install the required dependencies (mainly `streamlit` and `pandas`). You can use the requirements file:
 ```bash
-python Projeto_StatsTracker.py
+pip install -r requirements.txt
 ```
 
 ---
-## NOTA TÉCNICA
-O projeto inclui a pasta '.venv' conforme as instruções do forúm de dúvidas da cadeira.
-Caso ocorra algum erro de compatibilidade, inclui também o ficheiro 'requirements.txt'.
-Para reinstalar as dependências, pode usar: 
+## RUN THE APPLICATION
+Via terminal:
 ```bash
-pip install -r requirements.txt
-``` 
-
---- 
-## ⚠️ Nota sobre a visualização (Cores do Rich)
-Este projeto utiliza a biblioteca `Rich` para interfaces coloridas
-Caso execute o código dentro do **PyCharm**, por favor ative a opção:
-`Emulate terminal in output console` nas configurações de execução (Run Configuration).
-
-Se executar pelo **Terminal do Windows/CMD**, as cores funcionam automaticamente sem configuração extra.
+streamlit run app.py
+```
 
 ---
-## ⚠️ Nota sobre a Persistência de Dados
-O sistema de persistência (JSON) foi atualizado recentemente para corrigir a serialização de objetos (mudança de chaves de variáveis).
-O ficheiro de dados atual (`dados_equipa.json`) mantém o histórico antigo, mas algumas estatísticas acumuladas (como Defesas e Golos Sofridos) só começarão a contar corretamente a partir dos novos jogos registados nesta versão final.
+## ⚠️ Note on Data Persistense
+The persistence system (JSON) serves as the core database. Always ensure you click the "Save Game" button at the end of a match before exporting the CSV reports. If you are running this app on a cloud server (like Streamlit Community Cloud), remember to download the updated JSON backup file to keep your local database in sync.

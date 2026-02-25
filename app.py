@@ -3,11 +3,13 @@ import pandas as pd
 import time
 from datetime import timedelta
 
+
 # --- IMPORTA AS TUAS CLASSES ---
 try:
     from Projeto_StatsTracker import carregar_dados, salvar_dados, Jogo
 except ImportError:
     st.error("Erro: O ficheiro 'Projeto_StatsTracker.py' não está na mesma pasta.")
+    carregar_dados = salvar_dados = Jogo = None
     st.stop()
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
@@ -44,6 +46,12 @@ if 'golos_adv' not in st.session_state: st.session_state.golos_adv = 0
 if 'parte' not in st.session_state: st.session_state.parte = 1
 if 'momento_azul' not in st.session_state: st.session_state.momento_azul = None
 
+if 'log_eventos' not in st.session_state: st.session_state.log_eventos = []
+if 'stats_iniciais' not in st.session_state: st.session_state.stats_iniciais = {}
+
+if 'faltas_nos' not in st.session_state: st.session_state.faltas_nos = 0
+if 'faltas_adv' not in st.session_state: st.session_state.faltas_adv = 0
+
 equipa = st.session_state.equipa
 
 
@@ -72,7 +80,7 @@ def reiniciar_cronometro():
 # ==========================================
 def mostrar_menu():
     st.title("🏒 Parede FC Stats Tracker")
-    st.markdown("Bem-vindo, Mister.")
+    st.markdown("Bem-vindo")
     st.divider()
 
     if st.button("⏱️ COMEÇAR NOVO JOGO", type="primary", use_container_width=True):
@@ -118,6 +126,23 @@ def mostrar_configuracao():
 
             st.session_state.jogadores_em_campo = lista_final
 
+            # guardar snapshot das estatísticas iniciais
+            st.session_state.stats_iniciais = {}
+            for j in equipa.jogadores:
+                st.session_state.stats_iniciais[j.numero] = {
+                    'golos': getattr(j, 'golos', 0),
+                    'assistencias': getattr(j, 'assistencias', 0),
+                    'azuis': getattr(j, 'azuis', 0),
+                    'advertencias': getattr(j, 'advertencias', 0),
+                    'plus_minus': getattr(j, 'plus_minus', 0),
+                    "Faltas": getattr(j, 'faltas', 0),
+                    "Perdas_posse": getattr(j, 'perdas_posse', 0) if j.posicao != "Guarda-Redes" else 0,
+                    'defesas': getattr(j, 'defesas', 0) if j.posicao == "Guarda-Redes" else 0,
+                    'golossofridos': getattr(j, 'golossofridos', 0) if j.posicao == "Guarda-Redes" else 0,
+                    'bolasparadasdefendidas': getattr(j, 'bolasparadasdefendidas', 0) if j.posicao == "Guarda-Redes" else 0,
+                    'bolasparadassofridas': getattr(j, 'bolasparadassofridas', 0) if j.posicao == "Guarda-Redes" else 0
+                }
+
             # Reset variáveis
             st.session_state.golos_nos = 0
             st.session_state.golos_adv = 0
@@ -137,52 +162,147 @@ def mostrar_jogo():
     # 1. BARRA SUPERIOR
     c1, c2 = st.columns([1, 6])
     if c1.button("⬅ Sair"):
-        if st.button("Confirmar Saída?"):
             st.session_state.fase = "menu"
             st.rerun()
-
-    # 2. CÁLCULO DO TEMPO REAL
-    tempo_atual = st.session_state.tempo_acumulado
-    if st.session_state.cronometro_correndo:
-        tempo_atual += time.time() - st.session_state.cronometro_inicio
-
-    texto_tempo = formatar_tempo(tempo_atual)
 
     # 3. PLACAR GRANDE
     st.markdown(f"""
         <div class="score-board">
             <h1 style='color: white; margin:0;'>PAREDE FC  <span style='color:#ff4b4b; font-size:60px'>{st.session_state.golos_nos}</span> - <span style='color:white; font-size:60px'>{st.session_state.golos_adv}</span>  {st.session_state.adversario}</h1>
-            <h2 style='color: #fca311; margin:0;'>{st.session_state.parte}ª PARTE | ⏱ {texto_tempo}</h2>
+            <h3 style='color: #fca311; margin:0; padding-top: 10px;'>Faltas: {st.session_state.faltas_nos} - {st.session_state.faltas_adv}</h3>
         </div>
     """, unsafe_allow_html=True)
 
+    st.write("")
+
     # 4. CONTROLOS DE TEMPO
-    col_t1, col_t2, col_t3 = st.columns(3)
-    with col_t1:
-        btn_label = "⏸ PAUSAR" if st.session_state.cronometro_correndo else "▶ RETOMAR"
-        if st.button(btn_label, use_container_width=True):
-            alternar_cronometro()
-            st.rerun()
-    with col_t2:
-        if st.button("🏁 Intervalo / 2ª Parte", use_container_width=True):
-            st.session_state.parte = 2
-            reiniciar_cronometro()
-            st.session_state.cronometro_correndo = False
-            st.rerun()
-    with col_t3:
-        if st.button("💾 Guardar Jogo", type="primary", use_container_width=True):
-            novo_jogo = Jogo(
-                st.session_state.adversario,
-                st.session_state.golos_nos,
-                st.session_state.golos_adv,
+
+    if st.button("💾 Guardar Jogo na base de dados", type="primary", use_container_width=True):
+        novo_jogo = Jogo(
+            st.session_state.adversario,
+            st.session_state.golos_nos,
+            st.session_state.golos_adv,
+        )
+        equipa.adicionar_jogo(novo_jogo)
+        salvar_dados(equipa)
+        st.success("Jogo Guardado!")
+
+    # criar a tabela da época toda
+    dados_epoca = []
+    for j in equipa.jogadores:
+        dados_epoca.append({
+            "Nome": j.nome,
+            "Numero": j.numero,
+            "Posicao": j.posicao,
+            "Golos": getattr(j, 'golos', 0),
+            "Assistencias": getattr(j, 'assistencias', 0),
+            "plus_minus": j.plus_minus,
+            "Cartoes_Azuis": getattr(j, 'azuis', 0),
+            "Advertencias": getattr(j, 'advertencias', 0),
+            "Faltas": getattr(j, 'faltas', 0),
+            "Perdas_posse": getattr(j, 'perdas_posse', 0) if j.posicao != "Guarda-Redes" else 0,
+            "Defesas": getattr(j, 'defesas', 0) if j.posicao == "Guarda-Redes" else 0,
+            "Golos_Sofridos": getattr(j, 'golossofridos', 0) if j.posicao == "Guarda-Redes" else 0,
+            "Bolas_Paradas_Defendidas": getattr(j, "bolasparadasdefendidas", 0) if j.posicao == "Guarda-Redes" else 0,
+            "Bolas_Paradas_Sofridas": getattr(j, "bolasparadassofridas", 0) if j.posicao == "Guarda-Redes" else 0,
+        })
+
+    # converter para Dataframe e depois para csv
+    df_epoca = pd.DataFrame(dados_epoca)
+    csv_epoca = df_epoca.to_csv(index=False, sep=";").encode("utf-8-sig")
+
+    stats_jogo_atual = []
+
+    if 'stats_iniciais' in st.session_state:
+        for j in equipa.jogadores:
+            inicial = st.session_state.stats_iniciais.get(j.numero, {})
+
+            # valores atuais (fim de jogo)
+            atual_golos = getattr(j, 'golos', 0)
+            atual_assistencias = getattr(j, 'assistencias', 0)
+            atual_azuis = getattr(j, 'azuis', 0)
+            atual_advetencias = getattr(j, 'advetencias', 0)
+            atual_pm = j.plus_minus
+            atual_defesas = getattr(j, 'defesas', 0) if j.posicao == "Guarda-Redes" else 0
+            atual_golossofridos = getattr(j, 'golossofridos', 0) if j.posicao == "Guarda-Redes" else 0
+            atual_bolasparadasdefendidas = getattr(j, 'bolasparadasdefendidas', 0) if j.posicao == "Guarda-Redes" else 0
+            atual_bolasparadassofridas = getattr(j, 'bolasparadassofridas', 0) if j.posicao == "Guarda-Redes" else 0
+
+            # calculo da difernça (o que aconteceu no jogo atual)
+            golos_hoje = atual_golos - inicial.get('golos', 0)
+            assistencias_hoje = atual_assistencias - inicial.get('assistencias', 0)
+            azuis_hoje = atual_azuis - inicial.get('azuis', 0)
+            advertencias_hoje = atual_advetencias - inicial.get('advetencias', 0)
+            pm_hoje = atual_pm - inicial.get('plus_minus', 0)
+            defesas_hoje = atual_defesas - inicial.get('defesas', 0)
+            golossofridos_hoje = atual_golossofridos - inicial.get('golossofridos', 0)
+            bolasparadasdefendidas_hoje = atual_bolasparadasdefendidas - inicial.get('bolasparadasdefendidas', 0)
+            bolasparadassofridas_hoje = atual_bolasparadassofridas - inicial.get('bolasparadassofridas', 0)
+
+            if (golos_hoje + assistencias_hoje + azuis_hoje + advertencias_hoje + defesas_hoje + golossofridos_hoje + bolasparadasdefendidas_hoje + bolasparadassofridas_hoje != 0) or (pm_hoje != 0):
+                stats_jogo_atual.append({
+                    "numero": j.numero,
+                    "nome": j.nome,
+                    "golos": golos_hoje,
+                    "assistencias": assistencias_hoje,
+                    "plus_minus": pm_hoje,
+                    "cartoes_azuis": azuis_hoje,
+                    "defesas": defesas_hoje if j.posicao == "Guarda-Redes" else "-",
+                    "golossofridos": golossofridos_hoje if j.posicao == "Guarda-Redes" else "-",
+                    "bolasparadasdefendidas": bolasparadasdefendidas_hoje if j.posicao == "Guarda-Redes" else "-",
+                    "bolasparadassofridas": bolasparadassofridas_hoje if j.posicao == "Guarda-Redes" else "-"
+                })
+
+        # 2. Converter os stats do jogo atual para CSV
+        if len(stats_jogo_atual) > 0:
+            df_jogo = pd.DataFrame(stats_jogo_atual)
+        else:
+            # se não aconteceu nada, cria uma tabela vazia com aviso
+            df_jogo = pd.DataFrame([{"Aviso": "Sem dados registados neste jogo."}])
+
+        # o sep=";" ajuda o Excel a separar logo as colunas automaticamente
+        csv_jogo = df_jogo.to_csv(index=False, sep=";").encode('utf-8-sig')
+
+        nome_ficheiro_jogo = f"Jogo_{st.session_state.adversario.replace(' ', '_')}.csv"
+
+        # --- BOTÕES DE DESCARREGAR LADO A LADO ---
+        col_dl1, col_dl2 = st.columns(2)
+        with col_dl1:
+            st.download_button(
+                label="📊 Descarregar Estatísticas da Época",
+                data=csv_epoca,
+                file_name="Estatisticas_Epoca_ParedeFC.csv",
+                mime="text/csv",
+                use_container_width=True,
+                key="download_geral"
+            )
+        with col_dl2:
+            st.download_button(
+                label=f"📄 Descarregar Jogo vs {st.session_state.adversario}",
+                data=csv_jogo,
+                file_name=nome_ficheiro_jogo,
+                mime="text/csv",
+                use_container_width=True,
+                key="download_jogo"
             )
 
-            equipa.adicionar_jogo(novo_jogo)
-            salvar_dados(equipa)
-            st.success("Jogo Guardado!")
-            time.sleep(2)
-            st.session_state.fase = "menu"
-            st.rerun()
+        st.write("---")
+
+        # --- BOTÃO DE BACKUP (JSON) ---
+        st.markdown("**Área do Analista (Backup)**")
+        try:
+            with open("dados_equipa.json", "r", encoding="utf-8") as f:
+                db_json = f.read()
+            st.download_button(
+                label="⚙️ Descarregar Base de Dados Atualizada (JSON)",
+                data=db_json,
+                file_name="dados_equipa_atualizados.json",
+                mime="application/json",
+                use_container_width=True,
+                key="download_json_backup"
+            )
+        except FileNotFoundError:
+            st.warning("Guarda o jogo para gerar o backup.")
 
     st.divider()
 
@@ -206,7 +326,7 @@ def mostrar_jogo():
 
         for i, jogador in enumerate(st.session_state.jogadores_em_campo):
             # Layout das colunas para cada jogador
-            cols = st.columns([3, 1, 1, 1, 1])
+            cols = st.columns([3, 1, 1, 1, 1, 1, 1, 1, 1, 1])
 
             # COLUNA 0: Nome e Stats
             cols[0].markdown(f"**{jogador.numero}. {jogador.nome}** (PM: {jogador.plus_minus})")
@@ -225,20 +345,55 @@ def mostrar_jogo():
                     if not hasattr(jogador, 'defesas'): jogador.defesas = 0
                     jogador.defesas += 1
                     st.toast(f"Defesa do {jogador.nome}!")
+                # botão bola parada defendida
+                if cols[3].button("✋", key=f"bpd_{i}", help="Bola Parada Defendida"):
+                    if not hasattr(jogador, 'bolasparadasdefendidas'): jogador.bolasparadasdefendidas = 0
+                    jogador.bolasparadasdefendidas += 1
+                    st.toast(f"BP defendida! ({jogador.nome}")
+                # botão bola parada sofrida
+                if cols[4].button("❌", key=f"bps_{i}", help="Bola Parada Sofrida"):
+                    if not hasattr(jogador, 'bolasparadassofridas'): jogador.bolasparadassofridas = 0
+                    jogador.bolasparadassofridas += 1
+                    st.toast(f"BP sofrida! ({jogador.nome}")
             else:
                 # Botão de Assistência (Sapatilha)
                 if cols[2].button("👟", key=f"ass_{i}", help="Assistência"):
                     jogador.processar_evento("assistencia")
                     st.toast(f"Assistência: {jogador.nome}")
 
-            # COLUNA 3: Azul
-            if cols[3].button("🟦", key=f"azul_{i}", help="Cartão Azul"):
+            # COLUNA 5: Azul
+            if cols[5].button("🟦", key=f"azul_{i}", help="Cartão Azul"):
+                if not hasattr(jogador, 'azuis'): jogador.azuis = 0
+                jogador.azuis += 1
+
+                tempo = formatar_tempo(st.session_state.tempo_acumulado + (time.time() - st.session_state.cronometro_inicio if st.session_state.cronometro_correndo else 0))
+
                 st.session_state.momento_azul = time.time()
                 st.session_state.jogadores_em_campo.pop(i)
                 st.rerun()
 
-            # COLUNA 4: Substituição
-            if cols[4].button("⬇", key=f"sai_{i}", help="Substituir"):
+            # COLUNA 6: advertência
+            if cols[6].button("🟨", key=f"ama_{i}", help="Cartão Amarelo"):
+                if not hasattr(jogador, 'advertencias'): jogador.advertencias = 0
+                jogador.advertencias += 1
+                st.toast(f"Amarelo para {jogador.nome}")
+
+            # Coluna 7: falta cometida(Atualiza o Jogador E a Equipa)
+            if cols[7].button("🛑", key=f"falta_{i}", help="Falta Cometida"):
+                jogador.processar_evento("falta") # Soma 1 falta ao jogador no backend
+                st.session_state.faltas_nos += 1  # Soma 1 falta à equipa no Placar!
+
+                st.toast(f"Falta de {jogador.nome}! Total da Equipa: {st.session_state.faltas_nos}")
+                st.rerun()
+
+            # COLUNA 8: Perda de posse
+            if jogador.posicao != "Guarda-Redes":
+                if cols[8].button("📉", key=f"perda_{i}", help="Perda de Posse"):
+                    jogador.processar_evento("perda de posse")
+                    st.toast(f"Perda de posse: {jogador.nome}")
+
+            # COLUNA 9: Substituição
+            if cols[9].button("⬇", key=f"sai_{i}", help="Substituir"):
                 st.session_state.jogadores_em_campo.pop(i)
                 st.rerun()
 
@@ -272,14 +427,14 @@ def mostrar_jogo():
             st.toast("Golo sofrido! +/- atualizado.")
             st.rerun()
 
-        st.write("")
-        if st.button("Falta Cometida", use_container_width=True):
-            st.toast("Falta registada.")
+        st.write("---")
 
-        st.write("")
-        # Botão para contar Bolas Paradas contra (ex: Livres/Penalties)
-        if st.button("Bola Parada (Contra)", use_container_width=True):
-            st.toast("Bola parada contra registada.")
+        if st.button(f"🛑 Falta [{st.session_state.adversario}]", use_container_width=True):
+            st.session_state.faltas_adv += 1
+            st.toast(f"Falta do adversário! Total: {st.session_state.faltas_adv}")
+            st.rerun()
+
+    st.write("---")
 
     st.divider()
 
@@ -293,12 +448,22 @@ def mostrar_jogo():
             "Golos": getattr(j, 'golos', 0),
             "Assist": getattr(j, 'assistencias', 0),
             "+/-": j.plus_minus,
-            "Azuis": j.azuis
+            "Azuis": getattr(j, 'azuis', 0),
+            "Advertencias": getattr(j, 'advertencias', 0),
+            "Faltas": getattr(j, 'faltas', 0),
+            "Perdas_Posse": getattr(j, 'perdas_posse', 0) if jogador.posicao != "Guarda-Redes" else 0
         }
         if j.posicao == "Guarda-Redes":
             dados["Defesas"] = getattr(j, 'defesas', 0)
+            dados["Golos sofridos"] = getattr(j, 'golos_sofridos', 0)
+            dados["BP Defendidas"] = getattr(j, 'bolasparadasdefendidas', 0)
+            dados["BP Sofridas"] = getattr(j, 'bolasparadassofridas', 0)
         else:
             dados["Defesas"] = "-"
+            dados["Golos sofridos"] = "-"
+            dados["BP Defendidas"] = "-"
+            dados["BP Sofridas"] = "-"
+
         dados_tabela.append(dados)
 
     df = pd.DataFrame(dados_tabela).set_index("Nº")
